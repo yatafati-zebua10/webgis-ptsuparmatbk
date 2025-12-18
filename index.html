@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <title>Web Map Aset - PT. Suparma, Tbk.</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  
+  <link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"/>
+  <script src="https://js.arcgis.com/4.29/"></script>
+
+  <style>
+    :root { 
+      --primary: #003087; 
+      --esri-font: "Avenir Next W01", "Avenir Next", "Avenir LT Std", Helvetica, Arial, sans-serif;
+    }
+
+    html, body, #viewDiv, #container {
+      height: 100vh; margin: 0; padding: 0; overflow: hidden;
+      font-family: var(--esri-font) !important;
+    }
+    #container { display: flex; }
+
+    #sidebar {
+      width: 380px;
+      background: #f8f9fa;
+      border-right: 1px solid #ddd;
+      display: flex;
+      flex-direction: column;
+      z-index: 10;
+      box-shadow: 2px 0 20px rgba(0,0,0,0.1);
+      transition: transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
+      position: relative;
+    }
+
+    .header-title {
+      background: linear-gradient(135deg, var(--primary), #0052cc);
+      color: white;
+      padding: 18px 20px;
+      font-weight: 600;
+      font-size: 1.35rem;
+      text-align: center;
+      letter-spacing: 0.8px;
+    }
+
+    #tabHeader { 
+      display: flex; 
+      background: white; 
+      border-bottom: 1px solid #ddd; 
+    }
+    .tab-button { 
+      flex: 1; 
+      padding: 14px; 
+      text-align: center; 
+      cursor: pointer; 
+      font-weight: 500; 
+      color: #4a4a4a; 
+      transition: 0.3s; 
+      border-bottom: 2px solid transparent;
+    }
+    .tab-button:hover { 
+      color: var(--primary); 
+    }
+    .tab-button.active { 
+      border-bottom: 2px solid var(--primary); 
+      color: var(--primary); 
+      font-weight: 600;
+    }
+
+    .tab-content { display: none; padding: 16px; overflow-y: auto; flex: 1; background: white; }
+    .tab-content.active { display: block; }
+
+    .layer-group { 
+      background: white; 
+      border: 1px solid #e0e0e0; 
+      border-radius: 4px; 
+      padding: 14px; 
+      margin-bottom: 14px; 
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
+    }
+    .layer-title { display: flex; justify-content: space-between; align-items: center; font-weight: 600; color: var(--primary); margin-bottom: 10px; font-size: 0.95rem; }
+
+    .color-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .color-row label { flex: 1; font-size: 0.9rem; color: #333; }
+    .color-row input[type="color"] { width: 44px; height: 36px; padding: 4px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
+
+    .transparency-row { display: flex; align-items: center; gap: 12px; }
+    .transparency-row small { width: 70px; text-align: right; font-size: 0.85rem; }
+
+    .top-search-bar {
+      position: absolute; top: 8px; left: auto; right: 20px; transform: none;
+      background: white; padding: 2px 4px; border-radius: 4px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.18); display: flex; align-items: center;
+      gap: 2px; z-index: 999; height: 40px; max-width: 400px; border: 1px solid #ddd;
+    }
+    .top-search-bar button {
+      background: var(--primary); color: white; width: 32px; height: 32px;
+      border-radius: 4px; border: none; display: flex; align-items: center;
+      justify-content: center; font-size: 1rem; cursor: pointer;
+    }
+    .top-search-bar input { border: none; outline: none; flex: 1; font-size: 0.95rem; background: transparent; }
+
+    .sidebar-toggle {
+      position: fixed; right: 0; top: 50%; transform: translateY(-50%);
+      width: 50px; height: 80px; background: var(--primary); color: white;
+      border-radius: 4px 0 0 4px; display: none; align-items: center;
+      justify-content: center; font-size: 1.8rem; box-shadow: -4px 4px 15px rgba(0,0,0,0.4);
+      z-index: 1001; cursor: pointer; transition: all 0.35s ease;
+    }
+    .sidebar-toggle.active { background: #c62828; }
+
+    @media (max-width: 768px) {
+      #sidebar {
+        position: fixed; top: 0; left: -85%; width: 85% !important; height: 100vh;
+        z-index: 1000; transition: left 0.35s ease; box-shadow: 8px 0 30px rgba(0,0,0,0.4);
+      }
+      #sidebar.open { left: 0; }
+      .sidebar-toggle { display: flex !important; }
+      #sidebar.open ~ .sidebar-toggle { right: calc(85% - 50px); }
+      #sidebar.open::before {
+        content: ""; position: fixed; inset: 0;
+        background: rgba(0,0,0,0.5); z-index: -1;
+      }
+      .top-search-bar { 
+        left: 50%; transform: translateX(-50%); right: auto; 
+        width: 80%; max-width: 300px; padding: 2px 4px; gap: 2px; height: 40px; 
+      }
+    }
+
+    #viewDiv { flex: 1; }
+    .feature-item { 
+      padding: 16px 12px; 
+      border-bottom: 1px solid #eee; 
+      cursor: pointer; 
+      border-radius: 4px; 
+      margin-bottom: 8px; 
+      transition: background 0.2s; 
+    }
+    .feature-item:hover { background: #f0f5ff; }
+
+    .data-update-info {
+      font-size: 0.85rem;
+      color: #666;
+      text-align: center;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #eee;
+    }
+
+    #legendToggle {
+      position: absolute; bottom: 20px; right: 20px; background: white;
+      border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+      z-index: 100; cursor: pointer; font-size: 1.2rem; color: var(--primary);
+    }
+    #legend {
+      position: absolute; bottom: 70px; right: 20px; background: white;
+      border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      padding: 10px 15px; z-index: 100; font-size: 0.9rem; font-weight: 500;
+      max-height: 300px; overflow-y: auto; display: none;
+    }
+    #legend.open { display: block; }
+
+    #legend .esri-legend__layer-caption { display: none; }
+    #legend .esri-legend__service { margin-bottom: 8px; }
+    #legend .esri-legend__layer-row { display: flex; align-items: center; gap: 10px; }
+    #legend .esri-legend__symbol { flex-shrink: 0; }
+    #legend .esri-legend__layer-label { margin: 0; }
+
+    #measureLengthBtn.btn-success, #measureAreaBtn.btn-info { color: white !important; }
+    #measureLengthBtn.btn-success:hover, #measureAreaBtn.btn-info:hover { color: white !important; }
+
+    .no-info-message {
+      text-align: center;
+      color: #999;
+      font-style: italic;
+      padding: 40px 20px;
+    }
+
+    .detail-container {
+      margin-top: 20px;
+    }
+
+    .download-btn {
+      margin-top: 20px;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+
+<div id="loading" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:white;padding:30px 40px;border-radius:4px;z-index:9999;text-align:center;">
+  <i class="fas fa-spinner fa-spin fa-3x"></i><br><br>Memuat data aset...
+</div>
+
+<div class="sidebar-toggle" id="sidebarToggle">
+  <i class="fas fa-chevron-left" id="toggleIcon"></i>
+</div>
+
+<div class="top-search-bar">
+  <button id="locateBtn" aria-label="Lokasi Saya"><i class="fas fa-location-crosshairs"></i></button>
+  <input type="text" id="searchBox" placeholder="Cari lokasi..." aria-label="Cari lokasi">
+  <button id="searchBtn" aria-label="Cari"><i class="fas fa-search"></i></button>
+</div>
+
+<div id="container">
+  <div id="sidebar">
+    <div class="header-title">WebGIS PT. Suparma, Tbk.</div>
+
+    <div id="tabHeader">
+      <div class="tab-button active" data-tab="layersTab">Peta</div>
+      <div class="tab-button" data-tab="bidangTab">Daftar Tanah</div>
+      <div class="tab-button" data-tab="toolsTab">Alat</div>
+    </div>
+
+    <!-- TAB PETA -->
+    <div id="layersTab" class="tab-content active">
+      <div class="layer-group">
+        <div class="layer-title">Basemap</div>
+        <select id="basemapSelect" class="form-select form-select-sm" aria-label="Pilih basemap">
+          <option value="topo-vector">Topographic</option>
+          <option value="streets">Streets</option>
+          <option value="satellite">Satellite</option>
+          <option value="hybrid">Hybrid</option>
+          <option value="gray-vector">Gray</option>
+          <option value="osm" selected>OpenStreetMap</option>
+        </select>
+      </div>
+      <div class="layer-group">
+        <div class="layer-title">
+          Bidang Tanah
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" role="switch" id="layerToggle" checked aria-label="Toggle visibilitas layer Bidang Tanah">
+          </div>
+        </div>
+        <div class="color-row">
+          <input type="color" id="fillColor" value="#003087" aria-label="Warna fill">
+          <label for="fillColor">Warna Fill</label>
+        </div>
+        <div class="color-row">
+          <input type="color" id="outlineColor" value="#000000" aria-label="Warna outline">
+          <label for="outlineColor">Warna Outline</label>
+        </div>
+        <div class="transparency-row">
+          <input type="range" id="fillOpacity" min="0" max="100" value="50" class="form-range flex-fill" aria-label="Transparansi fill">
+          <small id="fillOpacityValue">50%</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB DAFTAR TANAH -->
+    <div id="bidangTab" class="tab-content">
+      <div class="layer-group" id="searchGroup">
+        <label class="form-label text-muted fw-bold" for="searchAll">Cari Pemilik / Eks / ID Tanah</label>
+        <input type="text" id="searchAll" class="form-control" placeholder="Nama / Eks / ID" aria-label="Cari Pemilik / Eks / ID Tanah">
+        <label class="form-label text-muted fw-bold mt-3" for="searchAlamat">Cari Alamat</label>
+        <input type="text" id="searchAlamat" class="form-control" placeholder="Desa / Kec / Kab" aria-label="Cari Alamat">
+      </div>
+      <div class="layer-group">
+        <div id="featureListView">
+          <div id="featureList" style="max-height:300px;overflow-y:auto">Memuat data...</div>
+          <div id="dataUpdateInfo" class="data-update-info">Data diperbarui pada: -</div>
+        </div>
+        <div id="featureDetailView" style="display:none;">
+          <button id="backButton" class="btn btn-sm btn-outline-primary mb-3">Kembali ke Daftar</button>
+          <div id="featureDetail"></div>
+          <button id="downloadBerkasBtn" class="btn btn-primary download-btn"><i class="fas fa-download me-2"></i>Unduh Berkas</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB ALAT -->
+    <div id="toolsTab" class="tab-content">
+      <div class="layer-group">
+        <h6 class="mb-3 text-primary fw-600">Pengukuran</h6>
+        <button id="measureLengthBtn" class="btn btn-outline-success w-100 mb-2">Ukur Panjang</button>
+        <button id="measureAreaBtn" class="btn btn-outline-info w-100 mb-4">Ukur Luas</button>
+      </div>
+      <div class="layer-group">
+        <h6 class="mb-3 text-primary fw-600">Print Peta</h6>
+        <div id="printContainer"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="viewDiv"></div>
+
+  <div id="legendToggle"><i class="fas fa-info-circle"></i></div>
+  <div id="legend"></div>
+</div>
+
+<script>
+require([
+  "esri/Map", "esri/views/MapView", "esri/layers/GeoJSONLayer",
+  "esri/widgets/Search", "esri/widgets/Print", "esri/widgets/Measurement",
+  "esri/widgets/Legend", "esri/geometry/projection", "esri/Graphic",
+  "esri/geometry/Point", "esri/symbols/SimpleMarkerSymbol", "esri/geometry/geometryEngine"
+], function(Map, MapView, GeoJSONLayer, Search, Print, Measurement, Legend, projection, Graphic, Point, SimpleMarkerSymbol, geometryEngine) {
+
+  const loadingDiv = document.getElementById('loading');
+  let highlight = null;
+  let allFeatures = [], filteredFeatures = [];
+  let layerView = null;
+  let locationGraphic = null;
+
+  projection.load();
+
+  // SIDEBAR MOBILE
+  const sidebar = document.getElementById('sidebar');
+  const toggleBtn = document.getElementById('sidebarToggle');
+  const toggleIcon = document.getElementById('toggleIcon');
+  toggleBtn.addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+    const isOpen = sidebar.classList.contains('open');
+    toggleIcon.className = isOpen ? "fas fa-chevron-left" : "fas fa-chevron-right";
+    toggleBtn.classList.toggle('active', isOpen);
+    document.body.style.overflow = isOpen ? 'hidden' : '';
+  });
+
+  // MAP & LAYER
+  const geojsonLayer = new GeoJSONLayer({
+    url: "./data.geojson",
+    title: "Bidang Tanah Suparma",
+    renderer: { type: "simple", symbol: { type: "simple-fill", color: [0,48,135,0.5], outline: { color: [0,0,0,0.8], width: 1.5 }}},
+    labelingInfo: [{ labelExpressionInfo: { expression: "$feature.IDTANAH" }, symbol: { type: "text", color: "#000", haloColor: "white", haloSize: 1.5, font: { size: 10, weight: "bold" }}, labelPlacement: "above-center" }]
+  });
+
+  const map = new Map({ basemap: "osm", layers: [geojsonLayer] });
+  const view = new MapView({ container: "viewDiv", map, center: [112.67, -7.34], zoom: 13 });
+
+  view.whenLayerView(geojsonLayer).then(lv => {
+    layerView = lv;
+  });
+
+  // WARNA CONTROL
+  const hexToRgb = hex => /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex) ? 
+    [parseInt(RegExp.$1,16), parseInt(RegExp.$2,16), parseInt(RegExp.$3,16)] : [0,0,0];
+
+  const updateRenderer = () => {
+    const opacity = document.getElementById("fillOpacity").value / 100;
+    const rgb = hexToRgb(document.getElementById("fillColor").value);
+    const outline = hexToRgb(document.getElementById("outlineColor").value);
+    geojsonLayer.renderer = { type: "simple", symbol: { type: "simple-fill", color: [...rgb, opacity], outline: { color: outline, width: 2 }}};
+  };
+
+  ["fillColor","outlineColor"].forEach(id => document.getElementById(id).addEventListener("input", updateRenderer));
+  document.getElementById("fillOpacity").addEventListener("input", () => {
+    document.getElementById("fillOpacityValue").textContent = document.getElementById("fillOpacity").value + "%";
+    updateRenderer();
+  });
+  document.getElementById("layerToggle").addEventListener("change", e => geojsonLayer.visible = e.target.checked);
+  document.getElementById("basemapSelect").addEventListener("change", e => map.basemap = e.target.value);
+
+  // SEARCH
+  const searchWidget = new Search({ view, includeDefaultSources: true });
+  searchWidget.sources.push({
+    layer: geojsonLayer,
+    searchFields: ["NAMAMIL","IDTANAH","NAMAEKS","ALAMAT"],
+    outFields: ["*"],
+    name: "Bidang Tanah Suparma",
+    placeholder: "Cari aset tanah..."
+  });
+  document.getElementById("searchBox").addEventListener("keypress", e => e.key === "Enter" && searchWidget.search(e.target.value));
+  document.getElementById("searchBtn").addEventListener("click", () => searchWidget.search(document.getElementById("searchBox").value));
+
+  // LOKASI SAYA
+  document.getElementById("locateBtn").addEventListener("click", () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        position => {
+          const point = new Point({
+            longitude: position.coords.longitude,
+            latitude: position.coords.latitude
+          });
+          view.goTo({ center: point, zoom: 15 });
+          if (locationGraphic) view.graphics.remove(locationGraphic);
+          locationGraphic = new Graphic({
+            geometry: point,
+            symbol: new SimpleMarkerSymbol({
+              color: [0, 116, 217, 0.8],
+              outline: { color: [255, 255, 255], width: 3 },
+              size: "24px",
+              style: "circle"
+            })
+          });
+          view.graphics.add(locationGraphic);
+        },
+        error => alert("Gagal mendapatkan lokasi: " + error.message)
+      );
+    } else {
+      alert("Browser tidak mendukung geolocation.");
+    }
+  });
+
+  // PRINT & LEGEND
+  new Print({ view, container: "printContainer", printServiceUrl: "https://utility.arcgisonline.com/arcgis/rest/services/Utilities/PrintingTools/GPServer/Export%20Web%20Map%20Task" });
+
+  const legend = new Legend({ view: view, container: "legend" });
+  const legendToggle = document.getElementById("legendToggle");
+  const legendDiv = document.getElementById("legend");
+  legendToggle.addEventListener("click", () => {
+    legendDiv.classList.toggle("open");
+    legendToggle.innerHTML = legendDiv.classList.contains("open") ? '<i class="fas fa-times"></i>' : '<i class="fas fa-info-circle"></i>';
+  });
+
+  // PENGUKURAN
+  const measurement = new Measurement({ view });
+  const lengthButton = document.getElementById("measureLengthBtn");
+  const areaButton = document.getElementById("measureAreaBtn");
+
+  lengthButton.onclick = () => {
+    if (measurement.activeTool === "distance") {
+      measurement.clear();
+      lengthButton.classList.remove("btn-success");
+      lengthButton.textContent = "Ukur Panjang";
+    } else {
+      measurement.clear();
+      measurement.activeTool = "distance";
+      lengthButton.classList.add("btn-success");
+      lengthButton.textContent = "Stop Ukur Panjang";
+      areaButton.classList.remove("btn-info");
+      areaButton.textContent = "Ukur Luas";
+    }
+  };
+
+  areaButton.onclick = () => {
+    if (measurement.activeTool === "area") {
+      measurement.clear();
+      areaButton.classList.remove("btn-info");
+      areaButton.textContent = "Ukur Luas";
+    } else {
+      measurement.clear();
+      measurement.activeTool = "area";
+      areaButton.classList.add("btn-info");
+      areaButton.textContent = "Stop Ukur Luas";
+      lengthButton.classList.remove("btn-success");
+      lengthButton.textContent = "Ukur Panjang";
+    }
+  };
+
+  view.on("double-click", () => measurement.clear());
+
+  // TANGGAL UPDATE
+  async function fetchLastModified() {
+    try {
+      const response = await fetch("./data.geojson", { method: "HEAD" });
+      const lastModified = response.headers.get("Last-Modified");
+      if (lastModified) {
+        const date = new Date(lastModified);
+        const formatted = date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+        document.getElementById("dataUpdateInfo").textContent = `Data diperbarui pada: ${formatted}`;
+      }
+    } catch (err) {
+      document.getElementById("dataUpdateInfo").textContent = "Data diperbarui pada: Tidak tersedia";
+    }
+  }
+
+  // DAFTAR BIDANG
+  function renderList(features) {
+    const listEl = document.getElementById("featureList");
+    if (!features || features.length === 0) {
+      listEl.innerHTML = `<div class="text-center text-muted py-5"><i class="fas fa-search fa-2x mb-3"></i><br>Tidak ada data yang sesuai</div>`;
+      return;
+    }
+    listEl.innerHTML = "";
+    features.forEach(f => {
+      const a = f.attributes;
+      const div = document.createElement("div");
+      div.className = "feature-item";
+      div.role = "button";
+      div.tabIndex = 0;
+      div.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <strong>${a.IDTANAH || "-"}</strong>
+            <div class="mt-1"><strong>${a.NAMAMIL || "(Tanpa nama)"}</strong></div>
+            <small class="text-muted">${[a.DESAKEL, a.KECAMTN, a.KABKOTA].filter(Boolean).join(", ") || "Alamat tidak tersedia"}</small>
+          </div>
+          <small class="text-success">${a.LUASDOK ? Number(a.LUASDOK).toLocaleString('id-ID') + " m²" : (a.LUASGIS ? Number(a.LUASGIS).toLocaleString('id-ID') + " m²" : "")}</small>
+        </div>
+      `;
+      div.onclick = () => showFeatureDetail(f);
+      div.onkeydown = e => { if (e.key === "Enter") showFeatureDetail(f); };
+      listEl.appendChild(div);
+    });
+  }
+
+  function showFeatureDetail(f) {
+    const a = f.attributes;
+    view.goTo(f.geometry.extent.expand(1.8));
+    if (highlight) highlight.remove();
+    highlight = layerView.highlight(f);
+
+    // Sembunyikan kolom pencarian saat detail muncul
+    document.getElementById("searchGroup").style.display = "none";
+
+    document.getElementById("featureListView").style.display = "none";
+    document.getElementById("featureDetailView").style.display = "block";
+
+    const hasInfo = a.IDTANAH || a.NAMAMIL || a.NAMAEKS || a.JENISHAK || a.LUASDOK || a.LUASGIS;
+
+    if (!hasInfo) {
+      document.getElementById("featureDetail").innerHTML = `
+        <div class="no-info-message">
+          <i class="fas fa-info-circle fa-3x mb-3 text-muted"></i>
+          <p>Informasi detail untuk bidang ini tidak tersedia.</p>
+          <small>Mungkin bidang ini adalah jalan, sungai, atau data sementara.</small>
+        </div>
+      `;
+    } else {
+      document.getElementById("featureDetail").innerHTML = `
+        <h6 class="text-primary fw-600">${a.IDTANAH || "Tidak ada ID Tanah"}</h6><hr>
+        <p><strong>Nama Pemilik:</strong> ${a.NAMAMIL || "-"}<br>
+           <strong>Nama Eks Pemilik:</strong> ${a.NAMAEKS || "-"}<br>
+           <strong>Jenis Hak:</strong> ${a.JENISHAK || "-"}<br>
+           <strong>Alamat:</strong> ${[a.DESAKEL, a.KECAMTN, a.KABKOTA].filter(Boolean).join(", ") || "-"}<br>
+           <strong>Luas Menurut Berkas:</strong> ${a.LUASDOK ? Number(a.LUASDOK).toLocaleString('id-ID') + " m²" : "-"}<br>
+           <strong>Luas Menurut WGS:</strong> ${a.LUASGIS ? Number(a.LUASGIS).toLocaleString('id-ID') + " m²" : "-"}<br>
+           <strong>Koordinat UTM:</strong> ${getUtmCoords(f.geometry)}</p>
+      `;
+    }
+  }
+
+  function getUtmCoords(geometry) {
+    try {
+      const centroid = geometryEngine.centroid(geometry);
+      if (!centroid) return "Tidak tersedia";
+      const utmSr = { wkid: 32749 }; // Zone 49S - Jawa Timur
+      const projected = projection.project(centroid, utmSr);
+      if (projected) {
+        return `Easting: ${Math.round(projected.x)} m, Northing: ${Math.round(projected.y)} m (Zone 49S)`;
+      }
+    } catch (e) {
+      return "Tidak tersedia";
+    }
+    return "Tidak tersedia";
+  }
+
+  function applyFilters() {
+    const q1 = (document.getElementById("searchAll").value || "").trim().toLowerCase();
+    const q2 = (document.getElementById("searchAlamat").value || "").trim().toLowerCase();
+
+    filteredFeatures = allFeatures.filter(f => {
+      const a = f.attributes || {};
+      if (!a.IDTANAH && !a.NAMAMIL) return false;
+
+      const match1 = !q1 || [a.NAMAMIL, a.NAMAEKS, a.IDTANAH].some(v => (v||"").toLowerCase().includes(q1));
+      const match2 = !q2 || [a.DESAKEL, a.KECAMTN, a.KABKOTA].some(v => (v||"").toLowerCase().includes(q2));
+      return match1 && match2;
+    });
+
+    filteredFeatures.sort((a,b) => (a.attributes.NAMAMIL || "").localeCompare(b.attributes.NAMAMIL || ""));
+    renderList(filteredFeatures);
+  }
+
+  let debounceTimer;
+  document.getElementById("searchAll").addEventListener("input", () => { clearTimeout(debounceTimer); debounceTimer = setTimeout(applyFilters, 300); });
+  document.getElementById("searchAlamat").addEventListener("input", () => { clearTimeout(debounceTimer); debounceTimer = setTimeout(applyFilters, 300); });
+
+  document.getElementById("backButton").addEventListener("click", () => {
+    // Tampilkan kembali kolom pencarian saat kembali ke daftar
+    document.getElementById("searchGroup").style.display = "block";
+    document.getElementById("featureListView").style.display = "block";
+    document.getElementById("featureDetailView").style.display = "none";
+    if (highlight) { highlight.remove(); highlight = null; }
+  });
+
+  // Dummy tombol unduh berkas (bisa ditambahkan fungsi nanti)
+  document.getElementById("downloadBerkasBtn").addEventListener("click", () => {
+    alert("Fitur unduh berkas belum diimplementasikan. Silakan hubungi admin untuk update.");
+  });
+
+  // LOAD DATA
+  geojsonLayer.when(() => {
+    geojsonLayer.queryFeatures().then(res => {
+      allFeatures = (res.features || []).filter(f => {
+        const a = f.attributes || {};
+        return a.IDTANAH || a.NAMAMIL;
+      });
+      filteredFeatures = [...allFeatures];
+      applyFilters();
+      fetchLastModified();
+      loadingDiv.style.display = "none";
+    }).catch(() => {
+      loadingDiv.innerHTML = `Gagal memuat data!<br><button class="btn btn-light btn-sm mt-3" onclick="location.reload()">Coba lagi</button>`;
+    });
+  });
+
+  // TAB SWITCH
+  document.querySelectorAll(".tab-button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab-button").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+      document.getElementById(btn.dataset.tab).classList.add("active");
+      // Pastikan kolom pencarian muncul saat tab Daftar Tanah aktif
+      if (btn.dataset.tab === "bidangTab") {
+        document.getElementById("searchGroup").style.display = "block";
+      }
+    });
+  });
+
+  // KLIK DI PETA
+  view.on("click", async (event) => {
+    const response = await view.hitTest(event);
+    if (response.results.length > 0) {
+      const graphic = response.results[0].graphic;
+      if (graphic && graphic.layer === geojsonLayer) {
+        const attr = graphic.attributes || {};
+        if (attr.IDTANAH || attr.NAMAMIL) {
+          document.querySelectorAll(".tab-button").forEach(b => b.classList.remove("active"));
+          document.querySelector('[data-tab="bidangTab"]').classList.add("active");
+          document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+          document.getElementById("bidangTab").classList.add("active");
+          // Sembunyikan search group saat klik dari peta
+          document.getElementById("searchGroup").style.display = "none";
+          showFeatureDetail(graphic);
+        }
+      }
+    }
+  });
+
+});
+</script>
+</body>
+</html>
